@@ -394,6 +394,7 @@ describe("xnomad-launch", () => {
         .updateVault(
           newRecipient.publicKey,
           newMaxAmount,
+          null,
           new anchor.BN(newUnitPrice),
           new anchor.BN(newStartTime),
           new anchor.BN(newEndTime),
@@ -434,6 +435,7 @@ describe("xnomad-launch", () => {
             null,
             null,
             null,
+            null,
           )
           .accounts({
             vault: vault.publicKey,
@@ -456,6 +458,7 @@ describe("xnomad-launch", () => {
       await program.methods
         .updateVault(
           newRecipient.publicKey,
+          null,
           null,
           null,
           null,

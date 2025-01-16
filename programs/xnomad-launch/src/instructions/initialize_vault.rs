@@ -32,7 +32,33 @@ pub fn initialize_vault(
     vault.end_time = end_time;
     vault.owner = ctx.accounts.payer.key();
     vault.merkle_root = merkle_root;
+
+    emit!(InitializeVaultEvent {
+        vault: vault.key(),
+        recipient: recipient,
+        unit_price: unit_price,
+        max_mint_amount: max_mint_amount,
+        whitelist_max_mint_amount: whitelist_max_mint_amount,
+        merkle_root: merkle_root,
+        start_time: start_time,
+        end_time: end_time,
+        timestamp: Clock::get()?.unix_timestamp,
+    });
+
     Ok(())
+}
+
+#[event]
+pub struct InitializeVaultEvent {
+    pub vault: Pubkey,
+    pub recipient: Pubkey,
+    pub unit_price: u64,
+    pub max_mint_amount: u8,
+    pub whitelist_max_mint_amount: u8,
+    pub merkle_root: [u8; 32],
+    pub start_time: i64,
+    pub end_time: i64,
+    pub timestamp: i64,
 }
 
 #[derive(Accounts)]

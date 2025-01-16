@@ -25,6 +25,8 @@ pub fn deposit(
         ctx.accounts.user_deposit.nft_amount + nft_amount
     };
 
+    let is_whitelist = merkle_proof.is_some();
+
     // If merkle proof is provided, verify it and check whitelist limit
     if let Some(proof) = merkle_proof {
         // Calculate leaf from user's address
@@ -78,7 +80,27 @@ pub fn deposit(
     vault.total_deposited += deposit_amount;
     vault.total_nfts += nft_amount as u64;
 
+    // Emit deposit event
+    emit!(DepositEvent {
+        user: ctx.accounts.user.key(),
+        vault: ctx.accounts.vault.key(),
+        nft_amount,
+        deposit_amount,
+        is_whitelist,
+        timestamp: Clock::get()?.unix_timestamp,
+    });
+
     Ok(())
+}
+
+#[event]
+pub struct DepositEvent {
+    pub user: Pubkey,
+    pub vault: Pubkey,
+    pub nft_amount: u8,
+    pub deposit_amount: u64,
+    pub is_whitelist: bool,
+    pub timestamp: i64,
 }
 
 #[derive(Accounts)]
