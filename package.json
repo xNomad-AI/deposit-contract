@@ -1,12 +1,14 @@
 {
   "license": "ISC",
   "scripts": {
+    "test": "anchor test",
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1",
-    "@metaplex-foundation/mpl-core-candy-machine": "^0.2.3"
+    "@metaplex-foundation/mpl-core-candy-machine": "^0.2.3",
+    "@solana/web3.js": "^1.98.0"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.0",
