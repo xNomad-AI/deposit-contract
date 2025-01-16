@@ -65,6 +65,15 @@ async function getAllDeposits(program: Program<XnomadLaunch>, vault: PublicKey) 
   }));
 }
 
+async function getRecentDepositEvents(program: Program<XnomadLaunch>, vault: PublicKey) {
+  const signatures = await program.provider.connection.getSignaturesForAddress(vault, {
+    limit: 10,
+  });
+
+  const transactions = await program.provider.connection.getTransactions(signatures.map(s => s.signature));
+  // TODO: parse deposit event
+}
+
 async function main() {
   const connection = new Connection(clusterApiUrl('devnet'));
   const provider = new AnchorProvider(connection, new Wallet(Keypair.generate()));
@@ -74,4 +83,7 @@ async function main() {
 
   await getAllDeposits(program, vault);
   await getVaultInfo(program, vault);
+  await getRecentDepositEvents(program, vault);
 }
+
+main()
