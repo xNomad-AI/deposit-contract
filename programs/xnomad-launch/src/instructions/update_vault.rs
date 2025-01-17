@@ -7,7 +7,8 @@ pub fn update_vault(
     recipient: Option<Pubkey>,
     max_mint_amount: Option<u8>,
     whitelist_max_mint_amount: Option<u8>,
-    unit_price: Option<u64>,
+    max_unit_price: Option<u64>,
+    min_unit_price: Option<u64>,
     start_time: Option<i64>,
     end_time: Option<i64>,
     merkle_root: Option<[u8; 32]>,
@@ -22,8 +23,20 @@ pub fn update_vault(
         vault.max_mint_amount = new_max;
     }
 
-    if let Some(new_price) = unit_price {
-        vault.unit_price = new_price;
+    if let Some(new_max_price) = max_unit_price {
+        require!(
+            new_max_price >= min_unit_price.unwrap_or(vault.min_unit_price),
+            XNomadError::InvalidPriceConfig
+        );
+        vault.max_unit_price = new_max_price;
+    }
+
+    if let Some(new_min_price) = min_unit_price {
+        require!(
+            max_unit_price.unwrap_or(vault.max_unit_price) >= new_min_price,
+            XNomadError::InvalidPriceConfig
+        );
+        vault.min_unit_price = new_min_price;
     }
 
     if let Some(new_whitelist_max) = whitelist_max_mint_amount {
@@ -53,13 +66,14 @@ pub fn update_vault(
 
     emit!(UpdateVaultEvent {
         vault: vault.key(),
-        recipient: recipient,
-        unit_price: unit_price,
-        max_mint_amount: max_mint_amount,
-        whitelist_max_mint_amount: whitelist_max_mint_amount,
-        merkle_root: merkle_root,
-        start_time: start_time,
-        end_time: end_time,
+        recipient,
+        max_unit_price,
+        min_unit_price,
+        max_mint_amount,
+        whitelist_max_mint_amount,
+        merkle_root,
+        start_time,
+        end_time,
         timestamp: Clock::get()?.unix_timestamp,
     });
 
@@ -70,7 +84,8 @@ pub fn update_vault(
 pub struct UpdateVaultEvent {
     pub vault: Pubkey,
     pub recipient: Option<Pubkey>,
-    pub unit_price: Option<u64>,
+    pub max_unit_price: Option<u64>,
+    pub min_unit_price: Option<u64>,
     pub max_mint_amount: Option<u8>,
     pub whitelist_max_mint_amount: Option<u8>,
     pub merkle_root: Option<[u8; 32]>,

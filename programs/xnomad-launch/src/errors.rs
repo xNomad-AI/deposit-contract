@@ -34,4 +34,10 @@ pub enum XNomadError {
 
     #[msg("Invalid NFT amount")]
     InvalidNftAmount,
+
+    #[msg("Invalid price configuration")]
+    InvalidPriceConfig,
+
+    #[msg("Invalid unit price")]
+    InvalidUnitPrice,
 }

@@ -7,6 +7,7 @@ use anchor_lang::solana_program::keccak;
 pub fn deposit(
     ctx: Context<Deposit>,
     nft_amount: u8,
+    unit_price: u64,
     merkle_proof: Option<Vec<[u8; 32]>>,
 ) -> Result<()> {
     let vault = &ctx.accounts.vault;
@@ -48,7 +49,12 @@ pub fn deposit(
         );
     }
 
-    let deposit_amount = (nft_amount as u64) * vault.unit_price;
+    require!(
+        unit_price >= vault.min_unit_price && unit_price <= vault.max_unit_price,
+        XNomadError::InvalidUnitPrice
+    );
+
+    let deposit_amount = (nft_amount as u64) * unit_price;
     require!(
         ctx.accounts.user.lamports() >= deposit_amount,
         XNomadError::InsufficientFunds
@@ -98,6 +104,7 @@ pub fn deposit(
         user: ctx.accounts.user.key(),
         vault: ctx.accounts.vault.key(),
         nft_amount,
+        unit_price,
         deposit_amount,
         is_whitelist,
         timestamp: clock.unix_timestamp,
@@ -117,6 +124,7 @@ pub struct DepositEvent {
     pub user: Pubkey,
     pub vault: Pubkey,
     pub nft_amount: u8,
+    pub unit_price: u64,
     pub deposit_amount: u64,
     pub is_whitelist: bool,
     pub timestamp: i64,

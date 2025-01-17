@@ -18,7 +18,8 @@ pub mod xnomad_launch {
         recipient: Pubkey,
         max_mint_amount: u8,
         whitelist_max_mint_amount: u8,
-        unit_price: u64,
+        max_unit_price: u64,
+        min_unit_price: u64,
         start_time: i64,
         end_time: i64,
         merkle_root: [u8; 32],
@@ -28,7 +29,8 @@ pub mod xnomad_launch {
             recipient,
             max_mint_amount,
             whitelist_max_mint_amount,
-            unit_price,
+            max_unit_price,
+            min_unit_price,
             start_time,
             end_time,
             merkle_root,
@@ -38,9 +40,10 @@ pub mod xnomad_launch {
     pub fn deposit(
         ctx: Context<Deposit>,
         nft_amount: u8,
+        unit_price: u64,
         merkle_proof: Option<Vec<[u8; 32]>>,
     ) -> Result<()> {
-        instructions::deposit(ctx, nft_amount, merkle_proof)
+        instructions::deposit(ctx, nft_amount, unit_price, merkle_proof)
     }
 
     pub fn update_vault(
@@ -48,7 +51,8 @@ pub mod xnomad_launch {
         recipient: Option<Pubkey>,
         max_mint_amount: Option<u8>,
         whitelist_max_mint_amount: Option<u8>,
-        unit_price: Option<u64>,
+        max_unit_price: Option<u64>,
+        min_unit_price: Option<u64>,
         start_time: Option<i64>,
         end_time: Option<i64>,
         merkle_root: Option<[u8; 32]>,
@@ -58,7 +62,8 @@ pub mod xnomad_launch {
             recipient,
             max_mint_amount,
             whitelist_max_mint_amount,
-            unit_price,
+            max_unit_price,
+            min_unit_price,
             start_time,
             end_time,
             merkle_root,
