@@ -5,7 +5,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-xnomad_launch = "9r65eZV3ZGamTZnvWXShu7DQtAqTwS237LW13Aq69Umd"
+xnomad_launch = "56SUkQRjKkAJzB1esPwn25tgvsW3TuwgzncvUh5rGT1C"
 
 [registry]
 url = "https://api.apr.dev"

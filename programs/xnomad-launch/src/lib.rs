@@ -7,7 +7,7 @@ pub mod utils;
 
 use instructions::*;
 
-declare_id!("9r65eZV3ZGamTZnvWXShu7DQtAqTwS237LW13Aq69Umd");
+declare_id!("56SUkQRjKkAJzB1esPwn25tgvsW3TuwgzncvUh5rGT1C");
 
 #[program]
 pub mod xnomad_launch {
