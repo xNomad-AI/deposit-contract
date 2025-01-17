@@ -62,9 +62,14 @@ async function getAllDeposits(program: Program<XnomadLaunch>, vault: PublicKey) 
 
   return deposits.map(deposit => ({
     user: deposit.user,
-    nftAmount: deposit.nftAmount,
-    depositAmount: deposit.depositAmount,
+    totalNftAmount: deposit.totalNftAmount,
+    totalDepositAmount: deposit.totalDepositAmount,
     vault: deposit.vault,
+    deposits: deposit.deposits.map(d => ({
+      nftAmount: d.nftAmount,
+      depositAmount: d.depositAmount,
+      timestamp: d.timestamp,
+    })),
   }));
 }
 

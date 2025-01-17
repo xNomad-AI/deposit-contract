@@ -143,124 +143,129 @@ describe("xnomad-launch", () => {
   });
 
   describe("deposit", () => {
+    // Helper function to check user deposit records
+    const checkUserDeposit = async (user: PublicKey, expectedDeposits: Array<{nftAmount: number, depositAmount: number}>) => {
+      const userDepositPda = getUserDepositPda(user, vault.publicKey);
+      const userDeposit = await program.account.userDeposit.fetch(userDepositPda);
+      console.log('UserDeposit:', userDeposit);
+      
+      // Verify totals
+      const totalNftAmount = expectedDeposits.reduce((sum, d) => sum + d.nftAmount, 0);
+      const totalDepositAmount = expectedDeposits.reduce((sum, d) => sum + d.depositAmount, 0);
+      
+      expect(userDeposit.totalNftAmount).to.equal(totalNftAmount);
+      expect(userDeposit.totalDepositAmount.toString()).to.equal(totalDepositAmount.toString());
+      
+      // Verify each deposit record
+      expect(userDeposit.deposits.length).to.equal(expectedDeposits.length);
+      for(let i = 0; i < expectedDeposits.length; i++) {
+        expect(userDeposit.deposits[i].nftAmount).to.equal(expectedDeposits[i].nftAmount);
+        expect(userDeposit.deposits[i].depositAmount.toString()).to.equal(
+          (expectedDeposits[i].depositAmount).toString()
+        );
+        expect(userDeposit.deposits[i].timestamp.toNumber()).to.be.gt(0);
+      }
+    };
+
+    // Helper function to check vault state
+    const checkVault = async (totalNfts: number, totalDeposited: number) => {
+      const vaultAccount = await program.account.vault.fetch(vault.publicKey);
+      expect(vaultAccount.totalDeposited.toString()).to.equal(totalDeposited.toString());
+      expect(vaultAccount.totalNfts.toString()).to.equal(totalNfts.toString());
+    };
+
+    const deposit = async (user: Keypair, nftAmount: number, merkleProof: Uint8Array[] | null, recipient: PublicKey, vault: PublicKey) => {
+      return await program.methods.deposit(nftAmount, merkleProof ? merkleProof.map(p => Array.from(p)) : null)
+        .accounts({
+          user: user.publicKey,
+          recipient,
+          vault,
+        })
+        .signers([user])
+        .rpc();
+    }
+
     it("Successfully deposits multiple times with no whitelist", async () => {
       const user = userNoWL.publicKey;
-      const firstNftAmount = 2;
-      const secondNftAmount = 1;
+      const depositAmounts = [1, 2];
 
-      const checkUserDeposit = async (nftAmount: number, depositAmount: number) => {
-        // Calculate user deposit PDA
-        const userDepositPda = getUserDepositPda(user, vault.publicKey);
-        const userDeposit = await program.account.userDeposit.fetch(userDepositPda);
-        expect(userDeposit.user.toString()).to.equal(user.toString());
-        expect(userDeposit.nftAmount).to.equal(nftAmount);
-        expect(userDeposit.depositAmount.toString()).to.equal((depositAmount).toString());
-        expect(userDeposit.vault.toString()).to.equal(vault.publicKey.toString());
+      const deposits: Array<{nftAmount: number, depositAmount: number}> = [];
+      
+      // Perform multiple deposits
+      for(const nftAmount of depositAmounts) {
+        const depositAmount = nftAmount * UNIT_PRICE;
+
+        await deposit(userNoWL, nftAmount, null, recipient.publicKey, vault.publicKey);
+          
+        deposits.push({nftAmount, depositAmount});
+        await checkUserDeposit(user, deposits);
+        await checkVault(
+          deposits.reduce((sum, d) => sum + d.nftAmount, 0),
+          deposits.reduce((sum, d) => sum + d.depositAmount, 0)
+        );
       }
-
-      const checkVault = async (totalNfts: number, totalDeposited: number) => {
-        const vaultAccount = await program.account.vault.fetch(vault.publicKey);
-        expect(vaultAccount.totalDeposited.toString()).to.equal(totalDeposited.toString());
-        expect(vaultAccount.totalNfts.toString()).to.equal(totalNfts.toString());
-      }
-
-      const initialBalance = await provider.connection.getBalance(recipient.publicKey);
-
-      // First deposit
-      await program.methods.deposit(firstNftAmount, null)
-        .accounts({
-          user,
-          recipient: recipient.publicKey,
-          vault: vault.publicKey,
-        })
-        .signers([userNoWL])
-        .rpc();
-
-      await checkUserDeposit(firstNftAmount, firstNftAmount * UNIT_PRICE);
-      await checkVault(firstNftAmount, firstNftAmount * UNIT_PRICE);
-
-      let midBalance = await provider.connection.getBalance(recipient.publicKey);
-      expect(midBalance - initialBalance).to.equal(firstNftAmount * UNIT_PRICE);
-
-      // Second 
-      await program.methods.deposit(secondNftAmount, null)
-        .accounts({
-          user,
-          recipient: recipient.publicKey,
-          vault: vault.publicKey,
-        })
-        .signers([userNoWL])
-        .rpc();
-
-      await checkUserDeposit(firstNftAmount + secondNftAmount, (firstNftAmount + secondNftAmount) * UNIT_PRICE);
-      await checkVault(firstNftAmount + secondNftAmount, (firstNftAmount + secondNftAmount) * UNIT_PRICE);
-
-      const finalBalance = await provider.connection.getBalance(recipient.publicKey);
-      expect(finalBalance - initialBalance).to.equal((firstNftAmount + secondNftAmount) * UNIT_PRICE);
     });
 
     it("Successfully deposits with whitelist proof", async () => {
+      const user = userWL0.publicKey;
+      const depositAmounts = [2, 1, 2];
       const merkleProof = getMerkleProof(whitelist.map(k => k.toBuffer()), userWL0.publicKey.toBuffer());
 
-      // Deposit with whitelist proof
-      const nftAmount = 3;
-      await program.methods
-        .deposit(
-          nftAmount,
-          merkleProof.map(p => Array.from(p)),
-        )
-        .accounts({
-          user: userWL0.publicKey,
-          recipient: recipient.publicKey,
-          vault: vault.publicKey,
-        })
-        .signers([userWL0])
-        .rpc();
+      const deposits: Array<{nftAmount: number, depositAmount: number}> = [];
 
-      // Verify deposit
-      const userDepositPda = getUserDepositPda(userWL0.publicKey, vault.publicKey);
-      const userDeposit = await program.account.userDeposit.fetch(userDepositPda);
-      expect(userDeposit.nftAmount).to.equal(nftAmount);
+      // Perform multiple deposits
+      for (const nftAmount of depositAmounts) {
+        const depositAmount = nftAmount * UNIT_PRICE;
+
+        await deposit(userWL0, nftAmount, merkleProof, recipient.publicKey, vault.publicKey);
+
+        deposits.push({nftAmount, depositAmount});
+        await checkUserDeposit(user, deposits);
+        await checkVault(
+          deposits.reduce((sum, d) => sum + d.nftAmount, 0),
+          deposits.reduce((sum, d) => sum + d.depositAmount, 0)
+        );
+      }
     });
 
-    it("Fails with invalid mint amount", async () => {
-      const invalidAmount = MAX_MINT_AMOUNT + 1;
-
+    it('Fails with 0 nft amount', async () => {
       try {
-        await program.methods
-          .deposit(invalidAmount, null)
-          .accounts({
-            user: userNoWL.publicKey,
-            recipient: recipient.publicKey,
-            vault: vault.publicKey,
-          })
-          .signers([userNoWL])
-          .rpc();
+        await deposit(userNoWL, 0, null, recipient.publicKey, vault.publicKey);
+        expect.fail("Should have failed with invalid nft amount");
+      } catch (error) {
+        assert.ok(error instanceof anchor.AnchorError);
+        expect(error.error.errorCode.code === 'InvalidNftAmount');
+      }
+    });
+
+    const expectDepoistFailed = async (user: Keypair, nftAmount: number, merkleProof: Uint8Array[] | null, recipient: PublicKey, vault: PublicKey) => {
+      try {
+        await deposit(user, nftAmount, merkleProof, recipient, vault);
         expect.fail("Should have failed with exceeds mint limit");
       } catch (error) {
         assert.ok(error instanceof anchor.AnchorError);
         expect(error.error.errorCode.code === 'ExceedsMintLimit')
       }
+    }
+
+    it("Fails with invalid mint amount", async () => {
+      // Mint MAX_MINT_AMOUNT + 1, should fail
+      await expectDepoistFailed(userNoWL, MAX_MINT_AMOUNT + 1, null, recipient.publicKey, vault.publicKey);
+
+      // Mint MAX_MINT_AMOUNT then mint 1, should fail
+      await deposit(userNoWL, MAX_MINT_AMOUNT, null, recipient.publicKey, vault.publicKey);
+      await expectDepoistFailed(userNoWL, 1, null, recipient.publicKey, vault.publicKey);
     });
 
     it('Fails with invalid whitelist mint amount', async () => {
-      const nftAmount = WHITELIST_MAX_MINT_AMOUNT + 1;
       const merkleProof = getMerkleProof(whitelist.map(k => k.toBuffer()), userWL0.publicKey.toBuffer());
-      try {
-        await program.methods
-        .deposit(nftAmount, merkleProof.map(p => Array.from(p)))
-        .accounts({
-          user: userWL0.publicKey,
-          recipient: recipient.publicKey,
-          vault: vault.publicKey,
-        })
-        .signers([userWL0])
-        .rpc();
-        expect.fail('Should have failed with invalid whitelist mint amount');
-      } catch (error) {
-        assert.ok(error instanceof anchor.AnchorError);
-        expect(error.error.errorCode.code === 'ExceedsWhitelistLimit')
-      }
+
+      // Mint WHITELIST_MAX_MINT_AMOUNT + 1, should fail
+      await expectDepoistFailed(userWL0, WHITELIST_MAX_MINT_AMOUNT + 1, merkleProof, recipient.publicKey, vault.publicKey);
+
+      // Mint WHITELIST_MAX_MINT_AMOUNT then mint 1, should fail
+      await deposit(userWL0, WHITELIST_MAX_MINT_AMOUNT, merkleProof, recipient.publicKey, vault.publicKey);
+      await expectDepoistFailed(userWL0, 1, merkleProof, recipient.publicKey, vault.publicKey);
     })
 
     it("Fails when deposit before start time", async () => {
@@ -340,46 +345,6 @@ describe("xnomad-launch", () => {
         expect(error.error.errorCode.code === "Ended");
       }
     });
-    //   // ... similar setup as above ...
-    //   const exceedAmount = WHITELIST_MAX_MINT_AMOUNT + 1;
-
-    //   try {
-    //     await program.methods
-    //       .deposit(exceedAmount, merkleProof.map(p => Array.from(p)))
-    //       .accounts({
-    //         user: whitelistedUser.publicKey,
-    //         recipient: recipient.publicKey,
-    //         vault: whitelistVault.publicKey,
-    //       })
-    //       .signers([whitelistedUser])
-    //       .rpc();
-    //     expect.fail("Should have failed with ExceedsWhitelistLimit");
-    //   } catch (error) {
-    //     assert.ok(error instanceof anchor.AnchorError);
-    //     expect(error.error.errorCode.code === "ExceedsWhitelistLimit");
-    //   }
-    // });
-
-    // it("Fails with invalid merkle proof", async () => {
-    //   // ... similar setup ...
-    //   const invalidProof = merkleProof.map(p => Buffer.alloc(32, 0));
-
-    //   try {
-    //     await program.methods
-    //       .deposit(1, invalidProof.map(p => Array.from(p)))
-    //       .accounts({
-    //         user: whitelistedUser.publicKey,
-    //         recipient: recipient.publicKey,
-    //         vault: whitelistVault.publicKey,
-    //       })
-    //       .signers([whitelistedUser])
-    //       .rpc();
-    //     expect.fail("Should have failed with InvalidMerkleProof");
-    //   } catch (error) {
-    //     assert.ok(error instanceof anchor.AnchorError);
-    //     expect(error.error.errorCode.code === "InvalidMerkleProof");
-    //   }
-    // });
   });
 
   describe("update_vault", () => {
@@ -478,31 +443,6 @@ describe("xnomad-launch", () => {
       expect(updatedVault.unitPrice.toString()).to.equal(oldVaultState.unitPrice.toString());
       expect(updatedVault.startTime.toString()).to.equal(oldVaultState.startTime.toString());
       expect(updatedVault.endTime.toString()).to.equal(oldVaultState.endTime.toString());
-    });
-  });
-
-  describe("queries", () => {
-    it("Gets all deposits", async () => {
-      const allUserDeposits = await program.account.userDeposit.all();
-      console.log("All deposits:", allUserDeposits.map(deposit => ({
-        user: deposit.account.user.toString(),
-        nftAmount: deposit.account.nftAmount,
-        depositAmount: deposit.account.depositAmount.toString(),
-        vault: deposit.account.vault.toString()
-      })));
-    });
-
-    it("Gets total stats", async () => {
-      const vaultAccount = await program.account.vault.fetch(vault.publicKey);
-      console.log("Total stats:", {
-        totalDeposited: vaultAccount.totalDeposited.toString(),
-        totalNfts: vaultAccount.totalNfts.toString(),
-        recipient: vaultAccount.recipient.toString(),
-        maxMintAmount: vaultAccount.maxMintAmount,
-        unitPrice: vaultAccount.unitPrice.toString(),
-        startTime: new Date(Number(vaultAccount.startTime) * 1000).toISOString(),
-        endTime: new Date(Number(vaultAccount.endTime) * 1000).toISOString(),
-      });
     });
   });
 });

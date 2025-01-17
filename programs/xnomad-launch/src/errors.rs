@@ -5,9 +5,6 @@ pub enum XNomadError {
     #[msg("Exceeds mint limit")]
     ExceedsMintLimit,
 
-    #[msg("Exceeds whitelist mint limit")]
-    ExceedsWhitelistLimit,
-
     #[msg("Insufficient funds")]
     InsufficientFunds,
 
@@ -31,4 +28,10 @@ pub enum XNomadError {
 
     #[msg("Invalid merkle proof")]
     InvalidMerkleProof,
+
+    #[msg("Exceeds maximum deposit times limit")]
+    ExceedsDepositLimit,
+
+    #[msg("Invalid NFT amount")]
+    InvalidNftAmount,
 }

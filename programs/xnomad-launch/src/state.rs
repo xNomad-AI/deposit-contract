@@ -17,7 +17,15 @@ pub struct Vault {
 #[account]
 pub struct UserDeposit {
     pub user: Pubkey,
+    pub total_nft_amount: u8,
+    pub total_deposit_amount: u64,
+    pub deposits: Vec<DepositInfo>,
+    pub vault: Pubkey,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
+pub struct DepositInfo {
     pub nft_amount: u8,
     pub deposit_amount: u64,
-    pub vault: Pubkey,
+    pub timestamp: i64,
 }
