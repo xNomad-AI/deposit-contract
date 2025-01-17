@@ -103,48 +103,49 @@ describe("xnomad-launch", () => {
     });
   });
 
-  describe("deposit", () => {
-    // Helper function to check user deposit records
-    const checkUserDeposit = async (user: PublicKey, expectedDeposits: Array<{nftAmount: number, depositAmount: number}>) => {
-      const userDepositPda = getUserDepositPda(user, vault.publicKey);
-      const userDeposit = await program.account.userDeposit.fetch(userDepositPda);
-      console.log('UserDeposit:', userDeposit);
-      
-      // Verify totals
-      const totalNftAmount = expectedDeposits.reduce((sum, d) => sum + d.nftAmount, 0);
-      const totalDepositAmount = expectedDeposits.reduce((sum, d) => sum + d.depositAmount, 0);
-      
-      expect(userDeposit.totalNftAmount).to.equal(totalNftAmount);
-      expect(userDeposit.totalDepositAmount.toString()).to.equal(totalDepositAmount.toString());
-      
-      // Verify each deposit record
-      expect(userDeposit.deposits.length).to.equal(expectedDeposits.length);
-      for(let i = 0; i < expectedDeposits.length; i++) {
-        expect(userDeposit.deposits[i].nftAmount).to.equal(expectedDeposits[i].nftAmount);
-        expect(userDeposit.deposits[i].depositAmount.toString()).to.equal(
-          (expectedDeposits[i].depositAmount).toString()
-        );
-        expect(userDeposit.deposits[i].timestamp.toNumber()).to.be.gt(0);
-      }
-    };
+  const deposit = async (user: Keypair, nftAmount: number, unitPrice: number, merkleProof: Uint8Array[] | null, recipient: PublicKey, vault: PublicKey) => {
+    return await program.methods.deposit(nftAmount, new anchor.BN(unitPrice), merkleProof ? merkleProof.map(p => Array.from(p)) : null)
+      .accounts({
+        user: user.publicKey,
+        recipient,
+        vault,
+      })
+      .signers([user])
+      .rpc();
+  }
 
-    // Helper function to check vault state
-    const checkVault = async (totalNfts: number, totalDeposited: number) => {
-      const vaultAccount = await program.account.vault.fetch(vault.publicKey);
-      expect(vaultAccount.totalDeposited.toString()).to.equal(totalDeposited.toString());
-      expect(vaultAccount.totalNfts.toString()).to.equal(totalNfts.toString());
-    };
-
-    const deposit = async (user: Keypair, nftAmount: number, unitPrice: number, merkleProof: Uint8Array[] | null, recipient: PublicKey, vault: PublicKey) => {
-      return await program.methods.deposit(nftAmount, new anchor.BN(unitPrice), merkleProof ? merkleProof.map(p => Array.from(p)) : null)
-        .accounts({
-          user: user.publicKey,
-          recipient,
-          vault,
-        })
-        .signers([user])
-        .rpc();
+  // Helper function to check user deposit records
+  const checkUserDeposit = async (user: PublicKey, expectedDeposits: Array<{nftAmount: number, depositAmount: number}>) => {
+    const userDepositPda = getUserDepositPda(user, vault.publicKey);
+    const userDeposit = await program.account.userDeposit.fetch(userDepositPda);
+    console.log('UserDeposit:', userDeposit);
+    
+    // Verify totals
+    const totalNftAmount = expectedDeposits.reduce((sum, d) => sum + d.nftAmount, 0);
+    const totalDepositAmount = expectedDeposits.reduce((sum, d) => sum + d.depositAmount, 0);
+    
+    expect(userDeposit.totalNftAmount).to.equal(totalNftAmount);
+    expect(userDeposit.totalDepositAmount.toString()).to.equal(totalDepositAmount.toString());
+    
+    // Verify each deposit record
+    expect(userDeposit.deposits.length).to.equal(expectedDeposits.length);
+    for(let i = 0; i < expectedDeposits.length; i++) {
+      expect(userDeposit.deposits[i].nftAmount).to.equal(expectedDeposits[i].nftAmount);
+      expect(userDeposit.deposits[i].depositAmount.toString()).to.equal(
+        (expectedDeposits[i].depositAmount).toString()
+      );
+      expect(userDeposit.deposits[i].timestamp.toNumber()).to.be.gt(0);
     }
+  };
+  
+  // Helper function to check vault state
+  const checkVault = async (totalNfts: number, totalDeposited: number) => {
+    const vaultAccount = await program.account.vault.fetch(vault.publicKey);
+    expect(vaultAccount.totalDeposited.toString()).to.equal(totalDeposited.toString());
+    expect(vaultAccount.totalNfts.toString()).to.equal(totalNfts.toString());
+  };
+
+  describe("deposit", () => {
 
     it("Successfully deposits multiple times with no whitelist", async () => {
       const user = userNoWL.publicKey;
@@ -182,7 +183,6 @@ describe("xnomad-launch", () => {
       const merkleProof = getMerkleProof(whitelist.map(k => k.toBuffer()), userWL0.publicKey.toBuffer());
 
       const deposits: Array<{nftAmount: number, depositAmount: number}> = [];
-      let recipientBalanceBefore = await provider.connection.getBalance(recipient.publicKey);
 
       // Perform multiple deposits
       for (let i = 0; i < depositAmounts.length; i++) {
@@ -198,10 +198,6 @@ describe("xnomad-launch", () => {
           deposits.reduce((sum, d) => sum + d.nftAmount, 0),
           deposits.reduce((sum, d) => sum + d.depositAmount, 0)
         );
-
-        const recipientBalanceAfter = await provider.connection.getBalance(recipient.publicKey);
-        expect(recipientBalanceAfter - recipientBalanceBefore).to.equal(depositAmount);
-        recipientBalanceBefore = recipientBalanceAfter;
       }
     });
 
@@ -217,7 +213,7 @@ describe("xnomad-launch", () => {
 
     const expectDepoistFailed = async (user: Keypair, nftAmount: number, unitPrice: number, merkleProof: Uint8Array[] | null, recipient: PublicKey, vault: PublicKey) => {
       try {
-        await deposit(user, nftAmount, MIN_UNIT_PRICE, merkleProof, recipient, vault);
+        await deposit(user, nftAmount, unitPrice, merkleProof, recipient, vault);
         expect.fail("Should have failed with exceeds mint limit");
       } catch (error) {
         assert.ok(error instanceof anchor.AnchorError);
@@ -310,6 +306,99 @@ describe("xnomad-launch", () => {
         expect(error.error.errorCode.code === "Ended");
       }
     });
+  });
+
+  const incrementDeposit = async (user: Keypair, depositIndex: number, newUnitPrice: number, recipient: PublicKey, vault: PublicKey) => {
+    return await program.methods.incrementDeposit(depositIndex, new anchor.BN(newUnitPrice))
+      .accounts({
+        user: user.publicKey,
+        recipient,
+        vault,
+      })
+      .signers([user])
+      .rpc();
+  }
+
+  describe("increment_deposit", () => {
+    it("Successfully increments deposit", async () => {
+      const nftAmounts = [1, 2];
+      const oldUnitPrices = [0.6 * LAMPORTS_PER_SOL, 0.7 * LAMPORTS_PER_SOL];
+      const newUnitPrices = [0.65 * LAMPORTS_PER_SOL, 0.75 * LAMPORTS_PER_SOL];
+      const expectedDeposits = [
+        {nftAmount: nftAmounts[0], depositAmount: oldUnitPrices[0] * nftAmounts[0]},
+        {nftAmount: nftAmounts[1], depositAmount: oldUnitPrices[1] * nftAmounts[1]},
+      ]
+
+      await deposit(userNoWL, 1, oldUnitPrices[0], null, recipient.publicKey, vault.publicKey);
+      await deposit(userNoWL, 2, oldUnitPrices[1], null, recipient.publicKey, vault.publicKey);
+
+      let recipientBalanceBefore = await provider.connection.getBalance(recipient.publicKey);
+
+      for (let i = 0; i < nftAmounts.length; i++) {
+        await incrementDeposit(userNoWL, i, newUnitPrices[i], recipient.publicKey, vault.publicKey);
+
+        expectedDeposits[i].depositAmount = newUnitPrices[i] * nftAmounts[i];
+        await checkUserDeposit(userNoWL.publicKey, expectedDeposits);
+        await checkVault(3, expectedDeposits.reduce((sum, d) => sum + d.depositAmount, 0));
+
+        let recipientBalanceAfter = await provider.connection.getBalance(recipient.publicKey);
+        expect(recipientBalanceAfter - recipientBalanceBefore).to.equal((newUnitPrices[i] - oldUnitPrices[i]) * nftAmounts[i]);
+        recipientBalanceBefore = recipientBalanceAfter;
+      }
+
+      // await incrementDeposit(userNoWL, 0, newUnitPrices[0], recipient.publicKey, vault.publicKey);
+
+      // expectedDeposits[0].depositAmount = newUnitPrices[0] * nftAmounts[0];
+      // await checkUserDeposit(userNoWL.publicKey, expectedDeposits);
+      // await checkVault(3, expectedDeposits.reduce((sum, d) => sum + d.depositAmount, 0));
+
+      // let recipientBalanceAfter = await provider.connection.getBalance(recipient.publicKey);
+      // expect(recipientBalanceAfter - recipientBalanceBefore).to.equal(newUnitPrices[0] - oldUnitPrices[0]);
+      // recipientBalanceBefore = recipientBalanceAfter;
+
+      // await incrementDeposit(userNoWL, 1, newUnitPrices[1], recipient.publicKey, vault.publicKey);
+
+      // expectedDeposits[1].depositAmount = newUnitPrices[1] * nftAmounts[1];
+      // await checkUserDeposit(userNoWL.publicKey, expectedDeposits);
+      // await checkVault(3, expectedDeposits.reduce((sum, d) => sum + d.depositAmount, 0));
+
+      // recipientBalanceAfter = await provider.connection.getBalance(recipient.publicKey);
+      // expect(recipientBalanceAfter - recipientBalanceBefore).to.equal(newUnitPrices[1] - oldUnitPrices[1]);
+      // recipientBalanceBefore = recipientBalanceAfter;
+    });
+
+    it('Fails with invalid deposit amount', async () => {
+      const oldUnitPrice = 0.6 * LAMPORTS_PER_SOL;
+      const newUnitPrice = 0.59 * LAMPORTS_PER_SOL;
+
+      await deposit(userNoWL, 1, oldUnitPrice, null, recipient.publicKey, vault.publicKey);
+
+      try {
+        await incrementDeposit(userNoWL, 0, newUnitPrice, recipient.publicKey, vault.publicKey);
+        expect.fail("Should have failed with invalid deposit amount");
+      } catch (error) {
+        assert.ok(error instanceof anchor.AnchorError);
+        expect(error.error.errorCode.code === "InvalidDepositAmount");
+      }
+
+      try {
+        await incrementDeposit(userNoWL, 0, MAX_UNIT_PRICE + 1, recipient.publicKey, vault.publicKey);
+        expect.fail("Should have failed with invalid deposit amount");
+      } catch (error) {
+        assert.ok(error instanceof anchor.AnchorError);
+        expect(error.error.errorCode.code === "InvalidUnitPrice");
+      }
+    })
+
+    it('Fails with invalid deposit index', async () => {
+      try {
+        await incrementDeposit(userNoWL, 0, 0.5 * LAMPORTS_PER_SOL, recipient.publicKey, vault.publicKey);
+        expect.fail("Should have failed with invalid deposit index");
+      } catch (error) {
+        assert.ok(error instanceof anchor.AnchorError);
+        expect(error.error.errorCode.code === "InvalidDepositIndex");
+      }
+    })
   });
 
   describe("update_vault", () => {

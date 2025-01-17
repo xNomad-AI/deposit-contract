@@ -115,7 +115,7 @@ async function main() {
   const provider = new AnchorProvider(connection, new Wallet(Keypair.generate()));
   const program = new Program<XnomadLaunch>(IDL as any, provider);
 
-  const vault = new PublicKey('5nvrfZbFzh7JTjDReGx2MfdWW28ppSVTHtf9FCxwirZC');
+  const vault = new PublicKey('84maKtDadorM3XxoK4wak82i4aTXgQ4phNsGDJkosFtG');
 
   const vaultInfo = await getVaultInfo(program, vault);
   console.log(vaultInfo);
@@ -126,8 +126,8 @@ async function main() {
   const events = await getRecentDepositEvents(program, vault, 2);
   console.log(events);
 
-  const userDeposit = await getUserDepositInfo(program, vault, new PublicKey('user pubkey'));
-  console.log(userDeposit);
+  // const userDeposit = await getUserDepositInfo(program, vault, new PublicKey('user pubkey'));
+  // console.log(userDeposit);
 }
 
 main()

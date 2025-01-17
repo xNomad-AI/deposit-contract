@@ -40,4 +40,10 @@ pub enum XNomadError {
 
     #[msg("Invalid unit price")]
     InvalidUnitPrice,
+
+    #[msg("Invalid deposit index")]
+    InvalidDepositIndex,
+
+    #[msg("New unit price must be higher than original")]
+    InvalidIncrementPrice,
 }

@@ -78,4 +78,12 @@ pub mod xnomad_launch {
     ) -> Result<()> {
         instructions::verify_merkle_proof(ctx, root, proof, address)
     }
+
+    pub fn increment_deposit(
+        ctx: Context<IncrementDeposit>,
+        deposit_index: u8,
+        new_unit_price: u64,
+    ) -> Result<()> {
+        instructions::increment_deposit(ctx, deposit_index, new_unit_price)
+    }
 }
