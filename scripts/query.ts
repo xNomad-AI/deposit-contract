@@ -124,6 +124,9 @@ async function main() {
 
   const events = await getRecentDepositEvents(program, vault, 2);
   console.log(events);
+
+  const userDeposit = await getUserDepositInfo(program, vault, new PublicKey('user pubkey'));
+  console.log(userDeposit);
 }
 
 main()
