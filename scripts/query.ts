@@ -1,7 +1,10 @@
 import { AnchorProvider, Idl, Program, Wallet } from "@coral-xyz/anchor";
-import { clusterApiUrl, Connection, Keypair, PublicKey } from "@solana/web3.js";
+import { clusterApiUrl, Connection, Finality, Keypair, PartiallyDecodedInstruction, PublicKey } from "@solana/web3.js";
 import IDL from "../target/idl/xnomad_launch.json";
 import { XnomadLaunch } from "../target/types/xnomad_launch";
+import base58 from 'bs58';
+import { getMerkleProof, getMerkleRoot } from "@metaplex-foundation/mpl-core-candy-machine";
+import { EventParser, BN } from "@coral-xyz/anchor";
 
 async function getVaultInfo(program: Program<XnomadLaunch>, vault: PublicKey) {
   const vaultInfo = await program.account.vault.fetch(vault);
@@ -65,13 +68,40 @@ async function getAllDeposits(program: Program<XnomadLaunch>, vault: PublicKey) 
   }));
 }
 
-async function getRecentDepositEvents(program: Program<XnomadLaunch>, vault: PublicKey) {
-  const signatures = await program.provider.connection.getSignaturesForAddress(vault, {
-    limit: 10,
-  });
+async function getUserDepositInfo(program: Program<XnomadLaunch>, vault: PublicKey, user: PublicKey) {
+  const [pda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("user_deposit"), user.toBuffer(), vault.toBuffer()],
+    program.programId
+  );
+  try {
+    const deposit = await program.account.userDeposit.fetch(pda);
+    return deposit;
+  } catch (e) {
+    return null;
+  }
+}
 
-  const transactions = await program.provider.connection.getTransactions(signatures.map(s => s.signature));
-  // TODO: parse deposit event
+async function getRecentDepositEvents(program: Program<XnomadLaunch>, vault: PublicKey, limit: number, commitment: Finality = 'confirmed') {
+  const signatures = await program.provider.connection.getSignaturesForAddress(vault, {
+    limit,
+  }, commitment);
+
+  const transactions = await program.provider.connection.getParsedTransactions(signatures.map(s => s.signature), commitment);
+
+  const events = transactions.flatMap(tx => {
+    const eventParser = new EventParser(program.programId, program.coder);
+    const events = Array.from(eventParser.parseLogs(tx.meta.logMessages));
+    return events;
+  })
+
+  return events.filter(e => e.name === 'depositEvent').map(e => ({
+    user: e.data.user as PublicKey,
+    vault: e.data.vault as PublicKey,
+    nftAmount: e.data.nftAmount as number,
+    depositAmount: e.data.depositAmount as BN,
+    isWhitelist: e.data.isWhitelist as boolean,
+    timestamp: e.data.timestamp as BN,
+  }));
 }
 
 async function main() {
@@ -79,11 +109,16 @@ async function main() {
   const provider = new AnchorProvider(connection, new Wallet(Keypair.generate()));
   const program = new Program<XnomadLaunch>(IDL as any, provider);
 
-  const vault = new PublicKey('fill your vault address here');
+  const vault = new PublicKey('5nvrfZbFzh7JTjDReGx2MfdWW28ppSVTHtf9FCxwirZC');
 
-  await getAllDeposits(program, vault);
-  await getVaultInfo(program, vault);
-  await getRecentDepositEvents(program, vault);
+  const vaultInfo = await getVaultInfo(program, vault);
+  console.log(vaultInfo);
+
+  const deposits = await getAllDeposits(program, vault);
+  console.log(deposits);
+
+  const events = await getRecentDepositEvents(program, vault, 2);
+  console.log(events);
 }
 
 main()
