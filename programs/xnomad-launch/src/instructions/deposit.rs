@@ -83,12 +83,14 @@ pub fn deposit(
         user_deposit.total_deposit_amount = 0;
     }
 
-    // Add new deposit to the array
-    user_deposit.deposits.push(DepositInfo {
-        nft_amount,
-        deposit_amount,
-        timestamp: clock.unix_timestamp,
-    });
+    // Add new deposits to the array - one for each NFT
+    for _ in 0..nft_amount {
+        user_deposit.deposits.push(DepositInfo {
+            nft_amount: 1,              // 每次只存入1个NFT
+            deposit_amount: unit_price, // 每个NFT的价格
+            timestamp: clock.unix_timestamp,
+        });
+    }
 
     // Update totals
     user_deposit.total_nft_amount = total_nft_amount;
@@ -112,7 +114,7 @@ pub fn deposit(
 
     // Check deposit times limit
     require!(
-        ctx.accounts.user_deposit.deposits.len() < 10,
+        ctx.accounts.user_deposit.deposits.len() <= 10,
         XNomadError::ExceedsDepositLimit
     );
 

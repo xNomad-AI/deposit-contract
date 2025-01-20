@@ -120,19 +120,27 @@ describe("xnomad-launch", () => {
     const userDeposit = await program.account.userDeposit.fetch(userDepositPda);
     console.log('UserDeposit:', userDeposit);
     
-    // Verify totals
+    // 计算预期的单个NFT存款记录
+    const expectedSingleDeposits = expectedDeposits.flatMap(deposit => {
+      return Array(deposit.nftAmount).fill({
+        nftAmount: 1,
+        depositAmount: deposit.depositAmount / deposit.nftAmount
+      });
+    });
+    
+    // 验证总计
     const totalNftAmount = expectedDeposits.reduce((sum, d) => sum + d.nftAmount, 0);
     const totalDepositAmount = expectedDeposits.reduce((sum, d) => sum + d.depositAmount, 0);
     
     expect(userDeposit.totalNftAmount).to.equal(totalNftAmount);
     expect(userDeposit.totalDepositAmount.toString()).to.equal(totalDepositAmount.toString());
     
-    // Verify each deposit record
-    expect(userDeposit.deposits.length).to.equal(expectedDeposits.length);
-    for(let i = 0; i < expectedDeposits.length; i++) {
-      expect(userDeposit.deposits[i].nftAmount).to.equal(expectedDeposits[i].nftAmount);
+    // 验证每条存款记录
+    expect(userDeposit.deposits.length).to.equal(expectedSingleDeposits.length);
+    for(let i = 0; i < expectedSingleDeposits.length; i++) {
+      expect(userDeposit.deposits[i].nftAmount).to.equal(expectedSingleDeposits[i].nftAmount);
       expect(userDeposit.deposits[i].depositAmount.toString()).to.equal(
-        (expectedDeposits[i].depositAmount).toString()
+        expectedSingleDeposits[i].depositAmount.toString()
       );
       expect(userDeposit.deposits[i].timestamp.toNumber()).to.be.gt(0);
     }
@@ -322,49 +330,30 @@ describe("xnomad-launch", () => {
   describe("increment_deposit", () => {
     it("Successfully increments deposit", async () => {
       const nftAmounts = [1, 2];
-      const oldUnitPrices = [0.6 * LAMPORTS_PER_SOL, 0.7 * LAMPORTS_PER_SOL];
-      const newUnitPrices = [0.65 * LAMPORTS_PER_SOL, 0.75 * LAMPORTS_PER_SOL];
+      const oldUnitPrices = [0.6 * LAMPORTS_PER_SOL, 0.7 * LAMPORTS_PER_SOL, 0.7 * LAMPORTS_PER_SOL];
+      const newUnitPrices = [0.65 * LAMPORTS_PER_SOL, 0.75 * LAMPORTS_PER_SOL, 0.8 * LAMPORTS_PER_SOL];
       const expectedDeposits = [
-        {nftAmount: nftAmounts[0], depositAmount: oldUnitPrices[0] * nftAmounts[0]},
-        {nftAmount: nftAmounts[1], depositAmount: oldUnitPrices[1] * nftAmounts[1]},
+        {nftAmount: 1, depositAmount: 0.6 * LAMPORTS_PER_SOL},
+        {nftAmount: 1, depositAmount: 0.7 * LAMPORTS_PER_SOL},
+        {nftAmount: 1, depositAmount: 0.7 * LAMPORTS_PER_SOL},
       ]
 
-      await deposit(userNoWL, 1, oldUnitPrices[0], null, recipient.publicKey, vault.publicKey);
-      await deposit(userNoWL, 2, oldUnitPrices[1], null, recipient.publicKey, vault.publicKey);
+      await deposit(userNoWL, 1, 0.6 * LAMPORTS_PER_SOL, null, recipient.publicKey, vault.publicKey);
+      await deposit(userNoWL, 2, 0.7 * LAMPORTS_PER_SOL, null, recipient.publicKey, vault.publicKey);
 
       let recipientBalanceBefore = await provider.connection.getBalance(recipient.publicKey);
 
-      for (let i = 0; i < nftAmounts.length; i++) {
+      for (let i = 0; i < 3; i++) {
         await incrementDeposit(userNoWL, i, newUnitPrices[i], recipient.publicKey, vault.publicKey);
 
-        expectedDeposits[i].depositAmount = newUnitPrices[i] * nftAmounts[i];
+        expectedDeposits[i].depositAmount = newUnitPrices[i];
         await checkUserDeposit(userNoWL.publicKey, expectedDeposits);
         await checkVault(3, expectedDeposits.reduce((sum, d) => sum + d.depositAmount, 0));
 
         let recipientBalanceAfter = await provider.connection.getBalance(recipient.publicKey);
-        expect(recipientBalanceAfter - recipientBalanceBefore).to.equal((newUnitPrices[i] - oldUnitPrices[i]) * nftAmounts[i]);
+        expect(recipientBalanceAfter - recipientBalanceBefore).to.equal((newUnitPrices[i] - oldUnitPrices[i]));
         recipientBalanceBefore = recipientBalanceAfter;
       }
-
-      // await incrementDeposit(userNoWL, 0, newUnitPrices[0], recipient.publicKey, vault.publicKey);
-
-      // expectedDeposits[0].depositAmount = newUnitPrices[0] * nftAmounts[0];
-      // await checkUserDeposit(userNoWL.publicKey, expectedDeposits);
-      // await checkVault(3, expectedDeposits.reduce((sum, d) => sum + d.depositAmount, 0));
-
-      // let recipientBalanceAfter = await provider.connection.getBalance(recipient.publicKey);
-      // expect(recipientBalanceAfter - recipientBalanceBefore).to.equal(newUnitPrices[0] - oldUnitPrices[0]);
-      // recipientBalanceBefore = recipientBalanceAfter;
-
-      // await incrementDeposit(userNoWL, 1, newUnitPrices[1], recipient.publicKey, vault.publicKey);
-
-      // expectedDeposits[1].depositAmount = newUnitPrices[1] * nftAmounts[1];
-      // await checkUserDeposit(userNoWL.publicKey, expectedDeposits);
-      // await checkVault(3, expectedDeposits.reduce((sum, d) => sum + d.depositAmount, 0));
-
-      // recipientBalanceAfter = await provider.connection.getBalance(recipient.publicKey);
-      // expect(recipientBalanceAfter - recipientBalanceBefore).to.equal(newUnitPrices[1] - oldUnitPrices[1]);
-      // recipientBalanceBefore = recipientBalanceAfter;
     });
 
     it('Fails with invalid deposit amount', async () => {
